@@ -24,7 +24,7 @@ setup_args = {
     'url': 'https://github.com/AaronParsons/sdrudp',
     'description': 'Tools for managing SDRs across networks.',
     'package_dir': {'sdrudp': 'src'},
-    'packages': ['sdrupd'],
+    'packages': ['sdrudp'],
     'include_package_data': True,
     'scripts': glob.glob('scripts/*'),
     'version': '0.0.1',
