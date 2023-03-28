@@ -1,12 +1,13 @@
+#! /usr/bin/env python
 import asyncio
 import time
 import sys
-from ugradio.sdr import SDR, handle_exception, shutdown
+from sdrudp.sdr import SDR, handle_exception, shutdown
 import functools
 import signal
 import socket
-import packet
-import compress
+from sdrudp import packet
+from sdrudp import compress
 import numpy as np
 
 SAMPLE_RATE = 1.8e6

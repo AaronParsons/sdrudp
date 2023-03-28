@@ -1,9 +1,10 @@
-import packet
+#! /usr/bin/env python
 import socket
 import select
 import threading
 import time
-import compress
+from sdrudp import compress
+from sdrudp import packet
 import numpy as np
 import matplotlib.pyplot as plt
 

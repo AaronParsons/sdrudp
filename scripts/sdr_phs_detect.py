@@ -1,12 +1,8 @@
+#! /usr/bin/env python
 import numpy as np
-import asyncio
 import time
-from rtlsdr import RtlSdr
 import matplotlib.pyplot as plt
-import logging
-import signal
-from ugradio.sdr import SDR
-import hera_filters
+from sdrudp.sdr import SDR
 
 NSAMPLES = 2048
 NBLOCKS = 40
