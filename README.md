@@ -19,4 +19,4 @@ Then clone and install this repository:
     cd sdrudp
     pip install .
   
- This automatically installs the dependencies ``numpy``, ``matplotlib``, and ``lz4``.
+ This automatically installs all other dependencies.
