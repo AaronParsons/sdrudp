@@ -50,6 +50,7 @@ while running:
         data = sdr.capture_data(nsamples=NSAMPLES, nblocks=NBLOCKS)
         t1 = time.time()
 #        print((t1 - t0) / (NSAMPLES * NBLOCKS / SAMPLE_RATE))
+        t += t1 - t0
         t0 = t1
         data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
         real = data[0, :, 0]
@@ -57,14 +58,16 @@ while running:
         data_cos = real * tone_cos - imag * tone_sin
         data_sin = real * tone_sin + imag * tone_cos
         dphi = np.arctan2(data_sin, data_cos)
-        sample_ADC = SAMPLE_RATE * omega * t / (np.unwrap(dphi) + omega * t)
-        sample_ADC = np.mean(sample_ADC[1:])
+        dphi -= dphi[0]  # remove phase offset XXX not exactly since we dont start at 0
+        sample_ADC = SAMPLE_RATE * omega * t
+        x = np.unwrap(dphi) + omega * t
+        sample_ADC /= x
+        sample_ADC = np.mean(sample_ADC)
         resamp_real = resample(real, sample_ADC, SAMPLE_RATE)
         resamp_imag = resample(imag, sample_ADC, SAMPLE_RATE)
         rs_cos = resamp_real * tone_cos - resamp_imag * tone_sin
         rs_sin = resamp_real * tone_sin + resamp_imag * tone_cos
         rs_dphi = np.arctan2(rs_sin, rs_cos)
-        print(np.mean(dphi**2) / np.mean(rs_dphi**2))
 
         if PLOT:
             line0.set_ydata(data_cos)
