@@ -49,7 +49,7 @@ while running:
             data_sin = data[0,...,0] * tone_sin + data[0,...,1] * tone_cos
             line0.set_ydata(data_cos)
             line1.set_ydata(data_sin)
-            #dt = np.arctan2(data_cos, data_sin) / (2 * np.pi * (TONE - LO) / SAMPLE_RATE)
+            #dt = np.arctan2(data_sin, data_cos) / (2 * np.pi * (TONE - LO) / SAMPLE_RATE)
             #line2.set_ydata(dt / np.pi * 128)
             #print(np.mean(np.diff(dt)[:500]))
             fig.canvas.draw()
