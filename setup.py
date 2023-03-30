@@ -30,7 +30,7 @@ setup_args = {
     'version': '0.0.1',
     #'package_data': {'sdrudp': data_files},
     'zip_safe': False,
-    'install_requires': ['numpy', 'lz4'],
+    'install_requires': ['lz4', 'matplotlib', 'numpy'],
 }
 
 
