@@ -6,7 +6,7 @@ from sdrudp.sdr import SDR
 from sdrudp.resample import resample
 
 NSAMPLES = 2048
-NBLOCKS = 40
+NBLOCKS = 1
 SAMPLE_RATE = 3.2e6
 LO = 901e6
 GAIN = 0
@@ -45,6 +45,10 @@ if PLOT:
 sdr = SDR(direct=False, center_freq=LO, sample_rate=SAMPLE_RATE, gain=GAIN)
 
 #t0 = time.time()
+all_data = []
+all_rs_data = []
+all_dphi = []
+all_rs_dphi = []
 while running:
     try:
         data = sdr.capture_data(nsamples=NSAMPLES, nblocks=NBLOCKS)
@@ -60,13 +64,18 @@ while running:
         dphi -= dphi[0]  # remove phase offset
         den = np.unwrap(dphi) + omega * t
         nonzero = den != 0
-        sample_ADC = SAMPLE_RATE * omega * t[nonzero] / den[nonzero]
-        sample_ADC = np.mean(sample_ADC)
+        sample_ADC = np.mean(SAMPLE_RATE * omega * t[nonzero] / den[nonzero])
+        print(sample_ADC/1e6)
         resamp_real = resample(real, sample_ADC, SAMPLE_RATE)
         resamp_imag = resample(imag, sample_ADC, SAMPLE_RATE)
         rs_cos = resamp_real * tone_cos - resamp_imag * tone_sin
         rs_sin = resamp_real * tone_sin + resamp_imag * tone_cos
         rs_dphi = np.arctan2(rs_sin, rs_cos)
+        
+        all_data.append(data)
+        all_rs_data.append(np.array([resamp_real, resamp_imag]).T)
+        all_dphi.append(dphi)
+        all_rs_dphi.append(rs_dphi)
 
         if PLOT:
             line0.set_ydata(data_cos)
@@ -80,3 +89,12 @@ while running:
             fig.canvas.flush_events()
     except KeyboardInterrupt:
         break
+
+sdr.close()
+d = {
+    "data": all_data,
+    "rs_data": all_rs_data, 
+    "dphi": all_dphi,
+    "rs_dphi": all_rs_dphi,
+}
+np.savez("data.npz", **d)
