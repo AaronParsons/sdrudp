@@ -44,24 +44,23 @@ if PLOT:
 
 sdr = SDR(direct=False, center_freq=LO, sample_rate=SAMPLE_RATE, gain=GAIN)
 
-t0 = time.time()
+#t0 = time.time()
 while running:
     try:
         data = sdr.capture_data(nsamples=NSAMPLES, nblocks=NBLOCKS)
-        t1 = time.time()
-#        print((t1 - t0) / (NSAMPLES * NBLOCKS / SAMPLE_RATE))
-        t += t1 - t0
-        t0 = t1
+        #t1 = time.time()
+        #print((t1 - t0) / (NSAMPLES * NBLOCKS / SAMPLE_RATE))
+        #t0 = t1
         data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
         real = data[0, :, 0]
         imag = data[0, :, 1]
         data_cos = real * tone_cos - imag * tone_sin
         data_sin = real * tone_sin + imag * tone_cos
         dphi = np.arctan2(data_sin, data_cos)
-        dphi -= dphi[0]  # remove phase offset XXX not exactly since we dont start at 0
-        sample_ADC = SAMPLE_RATE * omega * t
-        x = np.unwrap(dphi) + omega * t
-        sample_ADC /= x
+        dphi -= dphi[0]  # remove phase offset
+        den = np.unwrap(dphi) + omega * t
+        nonzero = den != 0
+        sample_ADC = SAMPLE_RATE * omega * t[nonzero] / den[nonzero]
         sample_ADC = np.mean(sample_ADC)
         resamp_real = resample(real, sample_ADC, SAMPLE_RATE)
         resamp_imag = resample(imag, sample_ADC, SAMPLE_RATE)
