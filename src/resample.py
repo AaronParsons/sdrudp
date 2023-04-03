@@ -45,10 +45,38 @@ def _cache_ker(nsamples, f_in, f_out, dt0, window, half_width, dtype):
 def resample(
     sig_in, f_in, f_out, dt0=0, window="nuttall", half_width=128, dtype=DTYPE
 ):
+    """
+    Resample a signal using sinc interpolation.
+
+    Parameters
+    ----------
+    sig_in : ndarray
+        Input signal with shape ([nblocks,] nsamples).
+    f_in : float
+        Input sampling frequency.
+    f_out : float
+        Output sampling frequency.
+    dt0 : float, optional
+        Initial time offset.
+    window : str, float, or tuple.
+        Window function for sinc interpolation. See `scipy.signal.get_window`
+        for details.
+    half_width : int
+        Half-width of the interpolation window.
+    dtype : dtype
+        Data type of the output signal.
+
+    Returns
+    -------
+    sig_out : ndarray
+        The resampled signal.
+    """
+    nsamples = sig_in.shape[-1]
     inds, ker = _cache_ker(
-        sig_in.shape[0], f_in, f_out, dt0, window, half_width, dtype
+        nsamples, f_in, f_out, dt0, window, half_width, dtype
     )
     # ker[inds < 0] = 0  # boundary is messed up anyway
     # ker[inds >= nsamples] = 0  # boundary is messed up anyway
-    return np.einsum("ij,ij->j", sig_in[inds], ker)
-    # return np.sum(sig_in[inds] * ker, axis=0)  # slightly slower than einsum
+    sig_out = np.einsum("...ij,ij->...j", sig_in[..., inds], ker)
+    return sig_out
+    #return np.sum(sig_in[:, inds] * ker, axis=-2)  # slightly slower than einsum
