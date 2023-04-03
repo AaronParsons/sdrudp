@@ -7,7 +7,7 @@ from sdrudp.resample import resample
 
 NSAMPLES = 2048
 NBLOCKS = 1
-SAMPLE_RATE = 3.2e6
+SAMPLE_RATE = 2.2e6
 LO = 901e6
 GAIN = 0
 TONE = 901.5e6
@@ -62,12 +62,13 @@ while running:
         data_sin = real * tone_sin + imag * tone_cos
         dphi = np.arctan2(data_sin, data_cos)
         dphi -= dphi[0]  # remove phase offset
+        dphi *= -1  # set phase to be positive when ahead of tone
         den = np.unwrap(dphi) + omega * t
         nonzero = den != 0
-        sample_ADC = np.mean(SAMPLE_RATE * omega * t[nonzero] / den[nonzero])
-        print(sample_ADC/1e6)
-        resamp_real = resample(real, sample_ADC, SAMPLE_RATE)
-        resamp_imag = resample(imag, sample_ADC, SAMPLE_RATE)
+        sample_adc = np.mean(SAMPLE_RATE * omega * t[nonzero] / den[nonzero])
+        print(sample_adc/1e6)
+        resamp_real = resample(real, sample_adc, SAMPLE_RATE)
+        resamp_imag = resample(imag, sample_adc, SAMPLE_RATE)
         rs_cos = resamp_real * tone_cos - resamp_imag * tone_sin
         rs_sin = resamp_real * tone_sin + resamp_imag * tone_cos
         rs_dphi = np.arctan2(rs_sin, rs_cos)
