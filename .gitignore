@@ -2,4 +2,4 @@
 build/
 sdrudp.egg-info/
 */.ipynb_checkpoints/
-data.npz
+data/
