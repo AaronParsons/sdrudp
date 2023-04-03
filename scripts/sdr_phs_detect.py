@@ -1,18 +1,19 @@
 #! /usr/bin/env python
 import numpy as np
-import time
 import matplotlib.pyplot as plt
 from sdrudp.sdr import SDR
 from sdrudp.resample import resample
 
 NSAMPLES = 2048
 NBLOCKS = 1
-SAMPLE_RATE = 2.2e6
+SAMPLE_RATE = 3.2e6
 LO = 901e6
 GAIN = 0
 TONE = 901.5e6
 
 PLOT = True
+TIMING = False
+
 t = np.arange(NSAMPLES) / SAMPLE_RATE
 omega = 2 * np.pi * (TONE - LO)
 tone_cos = np.cos(omega * t)
@@ -29,63 +30,64 @@ def on_close(event):
 
 if PLOT:
     plt.ion()
-    fig, axs = plt.subplots(nrows=2, sharex=True, constrained_layout=True)
+    fig, ax = plt.subplots()
     fig.canvas.mpl_connect("close_event", on_close)
-    (line0,) = axs[0].plot(t, np.ones(NSAMPLES))
-    (line1,) = axs[0].plot(t, np.ones(NSAMPLES))
-    (line2,) = axs[1].plot(t, np.ones(NSAMPLES), c="blue")
-    (line3,) = axs[1].plot(t, np.ones(NSAMPLES), c="black")
-    axs[0].set_ylim(-128, 128)
-    axs[0].set_ylabel("Voltage")
-    axs[1].set_ylim(-np.pi, np.pi)
-    axs[1].set_xlabel("Time [s]")
-    axs[1].set_ylabel("Phase [rad]")
+    (line0,) = ax.plot(t, np.ones(NSAMPLES), label="original")
+    (line1,) = ax.plot(t, np.ones(NSAMPLES), label="resampled")
+    ax.set_ylim(-np.pi, np.pi)
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Phase [rad]")
+    ax.legend()
     plt.grid()
 
 sdr = SDR(direct=False, center_freq=LO, sample_rate=SAMPLE_RATE, gain=GAIN)
 
-#t0 = time.time()
+if TIMING:
+    import time
+
+    t0 = time.time()
+
 all_data = []
 all_rs_data = []
 all_dphi = []
 all_rs_dphi = []
+all_sample_adc = []
+
 while running:
     try:
         data = sdr.capture_data(nsamples=NSAMPLES, nblocks=NBLOCKS)
-        #t1 = time.time()
-        #print((t1 - t0) / (NSAMPLES * NBLOCKS / SAMPLE_RATE))
-        #t0 = t1
+        if TIMING:
+            t1 = time.time()
+            print((t1 - t0) / (NSAMPLES * NBLOCKS / SAMPLE_RATE))
+            t0 = t1
+            continue
         data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
         real = data[0, :, 0]
         imag = data[0, :, 1]
         data_cos = real * tone_cos - imag * tone_sin
         data_sin = real * tone_sin + imag * tone_cos
         dphi = np.arctan2(data_sin, data_cos)
+        dphi *= -1  # make phase positive if adc sample clock runs slow
         dphi -= dphi[0]  # remove phase offset
-        dphi *= -1  # set phase to be positive when ahead of tone
-        den = np.unwrap(dphi) + omega * t
+        den = omega * t - np.unwrap(dphi)
         nonzero = den != 0
         sample_adc = np.mean(SAMPLE_RATE * omega * t[nonzero] / den[nonzero])
-        print(sample_adc/1e6)
-        resamp_real = resample(real, sample_adc, SAMPLE_RATE)
-        resamp_imag = resample(imag, sample_adc, SAMPLE_RATE)
-        rs_cos = resamp_real * tone_cos - resamp_imag * tone_sin
-        rs_sin = resamp_real * tone_sin + resamp_imag * tone_cos
+        print(sample_adc / 1e6)
+        rs_real = resample(real, sample_adc, SAMPLE_RATE)
+        rs_imag = resample(imag, sample_adc, SAMPLE_RATE)
+        rs_cos = rs_real * tone_cos - rs_imag * tone_sin
+        rs_sin = rs_real * tone_sin + rs_imag * tone_cos
         rs_dphi = np.arctan2(rs_sin, rs_cos)
-        
+
         all_data.append(data)
-        all_rs_data.append(np.array([resamp_real, resamp_imag]).T)
+        all_rs_data.append(np.array([rs_real, rs_imag]).T)
         all_dphi.append(dphi)
         all_rs_dphi.append(rs_dphi)
+        all_sample_adc.append(sample_adc)
 
         if PLOT:
-            line0.set_ydata(data_cos)
-            line1.set_ydata(data_sin)
-            line2.set_ydata(dphi)
-            line3.set_ydata(rs_dphi)
-            # dt = np.arctan2(data_sin, data_cos) / (omega / SAMPLE_RATE)
-            # line2.set_ydata(dt / np.pi * 128)
-            # print(np.mean(np.diff(dt)[:500]))
+            line0.set_ydata(dphi)
+            line1.set_ydata(rs_dphi)
             fig.canvas.draw()
             fig.canvas.flush_events()
     except KeyboardInterrupt:
@@ -93,9 +95,16 @@ while running:
 
 sdr.close()
 d = {
+    "nsamples": NSAMPLES,
+    "nblocks": NBLOCKS,
+    "sample_rate": SAMPLE_RATE,
+    "lo": LO,
+    "gain": GAIN,
+    "tone": TONE,
     "data": all_data,
-    "rs_data": all_rs_data, 
+    "rs_data": all_rs_data,
     "dphi": all_dphi,
     "rs_dphi": all_rs_dphi,
+    "sample_adc": all_sample_adc,
 }
 np.savez("data.npz", **d)
