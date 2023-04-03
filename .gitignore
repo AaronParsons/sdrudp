@@ -1,5 +1,7 @@
 .venv/
 build/
+data/
 sdrudp.egg-info/
 */.ipynb_checkpoints/
-data/
+src/__pycache__/
+src/test/__pycache__/
