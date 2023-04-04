@@ -6,7 +6,7 @@ from sdrudp.resample import resample
 
 NSAMPLES = 2048
 NBLOCKS = 1
-SAMPLE_RATE = 3.2e6
+SAMPLE_RATE = 2.2e6
 LO = 901e6
 GAIN = 0
 TONE = 901.5e6
@@ -19,6 +19,11 @@ omega = 2 * np.pi * (TONE - LO)
 tone_cos = np.cos(omega * t)
 tone_sin = -np.sin(omega * t)  # conjugate
 
+def phase(real, imag, tone_cos, tone_sin):
+    data_cos = real * tone_cos - imag * tone_sin
+    data_sin = real * tone_sin + imag * tone_cos
+    dphi = -np.arctan2(data_sin, data_cos)
+    return dphi
 
 running = True
 
@@ -64,10 +69,7 @@ while running:
         data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
         real = data[0, :, 0]
         imag = data[0, :, 1]
-        data_cos = real * tone_cos - imag * tone_sin
-        data_sin = real * tone_sin + imag * tone_cos
-        dphi = np.arctan2(data_sin, data_cos)
-        dphi *= -1  # make phase positive if adc sample clock runs slow
+        dphi = phase(real, imag, tone_cos, tone_sin)
         dphi -= dphi[0]  # remove phase offset
         den = omega * t - np.unwrap(dphi)
         nonzero = den != 0
@@ -75,9 +77,7 @@ while running:
         print(sample_adc / 1e6)
         rs_real = resample(real, sample_adc, SAMPLE_RATE)
         rs_imag = resample(imag, sample_adc, SAMPLE_RATE)
-        rs_cos = rs_real * tone_cos - rs_imag * tone_sin
-        rs_sin = rs_real * tone_sin + rs_imag * tone_cos
-        rs_dphi = np.arctan2(rs_sin, rs_cos)
+        rs_dphi = phase(rs_real, rs_imag, tone_cos, tone_sin)
 
         all_data.append(data)
         all_rs_data.append(np.array([rs_real, rs_imag]).T)
