@@ -24,7 +24,9 @@ tone_sin = -np.sin(omega * t)  # conjugate
 def phase(real, imag, tone_cos, tone_sin):
     data_cos = real * tone_cos - imag * tone_sin
     data_sin = real * tone_sin + imag * tone_cos
-    return np.unwrap(np.arctan2(data_sin, data_cos)) #XXX figure this out
+    return np.arctan2(data_sin, data_cos)
+    # return np.unwrap(np.arctan2(data_sin, data_cos)) #XXX figure this out
+
 
 def delta_phase(real, imag, tone_cos, tone_sin):
     data_cos = real * tone_cos - imag * tone_sin
@@ -32,6 +34,7 @@ def delta_phase(real, imag, tone_cos, tone_sin):
     data_cos2 = data_cos[1:] * data_cos[:-1] + data_sin[1:] * data_sin[:-1]
     data_sin2 = data_sin[1:] * data_cos[:-1] - data_cos[1:] * data_sin[:-1]
     return np.arctan2(data_sin2, data_cos2)
+
 
 running = True
 
@@ -50,7 +53,7 @@ if PLOT:
     ax.set_ylim(-np.pi, np.pi)
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Phase [rad]")
-    #ax.legend()
+    ax.legend(loc="upper right")
     plt.grid()
 
 sdr = SDR(direct=False, center_freq=LO, sample_rate=SAMPLE_RATE, gain=GAIN)
@@ -60,14 +63,13 @@ if TIMING:
 
     t0 = time.time()
 
-all_data = []
-all_rs_data = []
-all_dphi = []
-all_rs_dphi = []
-all_sample_adc = []
+if SAVE:
+    all_data = []
+    all_rs_data = []
+    all_dphi = []
+    all_rs_dphi = []
+    all_sample_adc = []
 
-import time #XXX
-i = 0
 sample_adc = SAMPLE_RATE + 1e-7
 while running:
     try:
@@ -80,35 +82,31 @@ while running:
         data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
         real = data[0, :, 0]
         imag = data[0, :, 1]
-#        sin, cos = tan_phi(real, imag, tone_cos, tone_sin)
         phi = phase(real, imag, tone_cos, tone_sin)
         dphi = np.mean(delta_phase(real, imag, tone_cos, tone_sin))
-        #den = omega * t - dphi
-        #nonzero = den != 0
-        #sample_adc = np.mean(SAMPLE_RATE * omega * t[nonzero] / den[nonzero])
-        new_sample_rate = SAMPLE_RATE * omega / SAMPLE_RATE / (dphi + omega/SAMPLE_RATE)
+        new_sample_rate = SAMPLE_RATE * omega / (dphi * SAMPLE_RATE + omega)
         if np.abs(dphi) > np.pi / NSAMPLES:
             w = 0
         else:
             w = 0.1
-        sample_adc = w * new_sample_rate + (1-w) * sample_adc
-        #print(new_sample_rate / 1e6, sample_adc / 1e6, np.abs(dphi))
+        sample_adc = w * new_sample_rate + (1 - w) * sample_adc
+        print(new_sample_rate / 1e6, sample_adc / 1e6, np.abs(dphi))
         rs_real = resample(real, sample_adc, SAMPLE_RATE)
         rs_imag = resample(imag, sample_adc, SAMPLE_RATE)
         rs_dphi = phase(rs_real, rs_imag, tone_cos, tone_sin)
 
-        all_data.append(data)
-        all_rs_data.append(np.array([rs_real, rs_imag]).T)
-        all_dphi.append(dphi)
-        all_rs_dphi.append(rs_dphi)
-        all_sample_adc.append(sample_adc)
+        if SAVE:
+            all_data.append(data)
+            all_rs_data.append(np.array([rs_real, rs_imag]).T)
+            all_dphi.append(dphi)
+            all_rs_dphi.append(rs_dphi)
+            all_sample_adc.append(sample_adc)
 
         if PLOT:
-            line0.set_ydata(phi-phi.mean())
-            line1.set_ydata(rs_dphi-rs_dphi.mean())
+            line0.set_ydata(phi - phi.mean())
+            line1.set_ydata(rs_dphi - rs_dphi.mean())
             fig.canvas.draw()
             fig.canvas.flush_events()
-            i += 1
     except KeyboardInterrupt:
         break
 
