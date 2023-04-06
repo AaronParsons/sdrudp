@@ -1,58 +1,125 @@
 #! /usr/bin/env python
 import numpy as np
-import time
 import matplotlib.pyplot as plt
 from sdrudp.sdr import SDR
+from sdrudp.resample import resample
 
-NSAMPLES = 2048
-NBLOCKS = 40
-SAMPLE_RATE = 3.2e6
+NSAMPLES = 1024
+NBLOCKS = 1
+SAMPLE_RATE = 2.2e6
 LO = 901e6
 GAIN = 0
 TONE = 901.5e6
 
-PLOT = False
+PLOT = True
+TIMING = False
+SAVE = False
 
-tone_cos = np.cos(2 * np.pi * (TONE - LO) * np.arange(NSAMPLES) / SAMPLE_RATE)
-tone_sin = -np.sin(2 * np.pi * (TONE - LO) * np.arange(NSAMPLES) / SAMPLE_RATE)  # conjugate
+t = np.arange(NSAMPLES) / SAMPLE_RATE
+omega = 2 * np.pi * (TONE - LO)
+tone_cos = np.cos(omega * t)
+tone_sin = -np.sin(omega * t)  # conjugate
 
 
-running = True
+def phase(real, imag, tone_cos, tone_sin):
+    data_cos = real * tone_cos - imag * tone_sin
+    data_sin = real * tone_sin + imag * tone_cos
+    return np.arctan2(data_sin, data_cos)
+
+
+def diff(phi):
+    return phase(
+        np.cos(phi[1:]), np.sin(phi[1:]), np.cos(phi[:-1]), -np.sin(phi[:-1])
+    )
+
+
 def on_close(event):
     global running
     running = False
 
-if PLOT:
-    plt.ion()
-    fig, ax = plt.subplots(ncols=1, nrows=1)
-    fig.canvas.mpl_connect('close_event', on_close)
-    line0, = ax.plot(np.ones(NSAMPLES))
-    line1, = ax.plot(np.ones(NSAMPLES))
-    #line2, = ax.plot(np.ones(NSAMPLES))
-    plt.xlabel('Time')
-    plt.ylabel('Voltage')
-    plt.ylim(-128, 128)
-    plt.grid()
 
 sdr = SDR(direct=False, center_freq=LO, sample_rate=SAMPLE_RATE, gain=GAIN)
-           
-t0 = time.time()
+
+if TIMING:
+    import time
+
+    SAVE = False
+    PLOT = False
+    t0 = time.time()
+
+if SAVE:
+    all_data = []
+    all_rs_data = []
+    all_phi = []
+    all_rs_phi = []
+    all_sample_adc = []
+
+if PLOT:
+    plt.ion()
+    fig, ax = plt.subplots()
+    fig.canvas.mpl_connect("close_event", on_close)
+    (line0,) = ax.plot(t, np.ones(NSAMPLES), label="original")
+    (line1,) = ax.plot(t, np.ones(NSAMPLES), label="resampled")
+    ax.set_ylim(-np.pi, np.pi)
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Phase [rad]")
+    ax.legend(loc="upper right")
+    plt.grid()
+
+running = True
+sample_adc = SAMPLE_RATE + 1e-7
 while running:
     try:
         data = sdr.capture_data(nsamples=NSAMPLES, nblocks=NBLOCKS)
-        t1 = time.time()
-        print((t1 - t0) / (NSAMPLES  * NBLOCKS / SAMPLE_RATE))
-        t0 = t1
+        if TIMING:
+            t1 = time.time()
+            print((t1 - t0) / (NSAMPLES * NBLOCKS / SAMPLE_RATE))
+            t0 = t1
+            continue
+        data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
+        real = data[0, :, 0]
+        imag = data[0, :, 1]
+        phi = phase(real, imag, tone_cos, tone_sin)
+        dphi = np.mean(diff(phi))
+        new_sample_rate = SAMPLE_RATE * omega / (dphi * SAMPLE_RATE + omega)
+        if np.abs(dphi) > np.pi / NSAMPLES:
+            w = 0
+        else:
+            w = 0.1
+        sample_adc = w * new_sample_rate + (1 - w) * sample_adc
+        print(new_sample_rate / 1e6, sample_adc / 1e6, np.abs(dphi))
+        rs_real = resample(real, sample_adc, SAMPLE_RATE)
+        rs_imag = resample(imag, sample_adc, SAMPLE_RATE)
+        rs_phi = phase(rs_real, rs_imag, tone_cos, tone_sin)
+
+        if SAVE:
+            all_data.append(data)
+            all_rs_data.append(np.array([rs_real, rs_imag]).T)
+            all_phi.append(phi)
+            all_rs_phi.append(rs_phi)
+            all_sample_adc.append(sample_adc)
+
         if PLOT:
-            data = data - np.mean(data, axis=1, keepdims=True)  # remove DC offset
-            data_cos = data[0,...,0] * tone_cos - data[0,...,1] * tone_sin
-            data_sin = data[0,...,0] * tone_sin + data[0,...,1] * tone_cos
-            line0.set_ydata(data_cos)
-            line1.set_ydata(data_sin)
-            #dt = np.arctan2(data_sin, data_cos) / (2 * np.pi * (TONE - LO) / SAMPLE_RATE)
-            #line2.set_ydata(dt / np.pi * 128)
-            #print(np.mean(np.diff(dt)[:500]))
+            line0.set_ydata((phi - phi[0] + np.pi) % (2 * np.pi) - np.pi)
+            line1.set_ydata((rs_phi - rs_phi[0] + np.pi) % (2 * np.pi) - np.pi)
             fig.canvas.draw()
             fig.canvas.flush_events()
-    except(KeyboardInterrupt):
+    except KeyboardInterrupt:
         break
+
+sdr.close()
+if SAVE:
+    d = {
+        "nsamples": NSAMPLES,
+        "nblocks": NBLOCKS,
+        "sample_rate": SAMPLE_RATE,
+        "lo": LO,
+        "gain": GAIN,
+        "tone": TONE,
+        "data": all_data,
+        "rs_data": all_rs_data,
+        "dphi": all_phi,
+        "rs_dphi": all_rs_phi,
+        "sample_adc": all_sample_adc,
+    }
+    np.savez("data.npz", **d)
