@@ -111,7 +111,7 @@ def phase(real, imag, tone_cos, tone_sin):
     return np.arctan2(data_sin, data_cos)
 
 
-def diff(phi):
+def diff(phi, axis=-1):
     """
     Compute phase difference between adjacent samples, that is, how the phase
     changes over time. This is like np.diff, but accounts for the periodicity
@@ -121,15 +121,18 @@ def diff(phi):
     ----------
     phi : array_like
         Phase values.
+    axis : int
+        Axis along which to compute the phase difference.
 
     Returns
     -------
     dphi : np.ndarray
         Phase differences.
     """
-    dphi = phase(
-        np.cos(phi[1:]), np.sin(phi[1:]), np.cos(phi[:-1]), -np.sin(phi[:-1])
-    )
+    indices = np.arange(phi.shape[axis])
+    phi1 = np.take(phi, indices[1:], axis=axis)
+    phi2 = np.take(phi, indices[:-1], axis=axis)
+    dphi = phase(np.cos(phi1), np.sin(phi1), np.cos(phi2), -np.sin(phi2))
     return dphi
 
 
