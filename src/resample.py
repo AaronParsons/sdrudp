@@ -79,4 +79,77 @@ def resample(
     # ker[inds >= nsamples] = 0  # boundary is messed up anyway
     sig_out = np.einsum("...ij,ij->...j", sig_in[..., inds], ker)
     return sig_out
-    #return np.sum(sig_in[:, inds] * ker, axis=-2)  # slightly slower than einsum
+    # slightly slower than einsum to use np.sum:
+    # return np.sum(sig_in[:, inds] * ker, axis=-2)
+
+
+def phase(real, imag, tone_cos, tone_sin):
+    """
+    Compute the phase difference between a measured signal and the injected
+    tone.
+
+    Parameters
+    ----------
+    real : array_like
+        Real part of the measured signal.
+    imag : array_like
+        Imaginary part of the measured signal.
+    tone_cos : array_like
+        Cosine part of the injected tone. Equivalently, the real part of the
+        complex tone.
+    tone_sin : array_like
+        Negative sine part of the injected tone. Equivalently, the imaginary
+        part of the complex conjugate of the tone.
+
+    Returns
+    -------
+    phase : np.ndarray
+        The phase difference between the measured signal and the injected tone.
+    """
+    data_cos = real * tone_cos - imag * tone_sin
+    data_sin = real * tone_sin + imag * tone_cos
+    return np.arctan2(data_sin, data_cos)
+
+
+def diff(phi):
+    """
+    Compute phase difference between adjacent samples, that is, how the phase
+    changes over time. This is like np.diff, but accounts for the periodicity
+    of the phase.
+
+    Parameters
+    ----------
+    phi : array_like
+        Phase values.
+
+    Returns
+    -------
+    dphi : np.ndarray
+        Phase differences.
+    """
+    dphi = phase(
+        np.cos(phi[1:]), np.sin(phi[1:]), np.cos(phi[:-1]), -np.sin(phi[:-1])
+    )
+    return dphi
+
+
+def sample_rate_adc(sample_rate, omega, dphi):
+    """
+    Compute the sample rate of an ADC given the injected tone and the mean
+    phase difference between the sampled data and the injected tone.
+
+    Parameters
+    ----------
+    sample_rate : float
+        Reference sample rate that the phase is measured with respect to.
+    omega : float
+        Frequency of the injected tone.
+    dphi : float
+        Mean phase difference between the sampled data and the injected tone.
+
+    Returns
+    -------
+    sample_rate : float
+        Sample rate of the ADC.
+    """
+    return sample_rate * omega / (dphi * sample_rate + omega)
