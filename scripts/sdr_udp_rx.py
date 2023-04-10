@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 PLOT = False  # XXX keyboard interrupt doesn't work with plot
-SAMPLE_RATE = 2.2e6
+SAMPLE_RATE = 1.8e6
 LO = 901e6
 TONE = 901.5e6
 omega = 2 * np.pi * (TONE - LO)
