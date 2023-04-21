@@ -31,7 +31,7 @@ def _cache_ker(nsamples, f_in, f_out, dt0, window, half_width, dtype):
         x = np.arange(-half_width, half_width + 1, dtype=int)
         i = np.arange(nsamples, dtype=int)
         dt = 1 - f_in / f_out
-        dt = np.arange(dt0, dt0 + nsamples * dt, dt, dtype=dtype)
+        dt = np.linspace(dt0, dt0 + nsamples * dt, nsamples, dtype=dtype)
         off = np.ceil(dt).astype(int)
         dt -= off
         i -= off
